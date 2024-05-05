@@ -99,7 +99,7 @@ impl Waterfall {
             0, 1, 3, // First triangle
             1, 2, 3,
         ];
-        let shader_version: &str = if cfg!(target_arch = "wasm32") {
+        let shader_version: &str = if cfg!(target_arch = "wasm32") || cfg!(target_os = "android") {
             "#version 300 es"
         } else {
             "#version 330"
@@ -119,6 +119,7 @@ impl Waterfall {
                 .expect("Could not create vertex array");
             let vbo = gl.create_buffer().expect("Could not create vertex buffer");
             let ebo = gl.create_buffer().expect("Could not create element buffer");
+            check_for_gl_errors(&gl, "Create buffers");
 
             gl.bind_vertex_array(Some(vao));
 
@@ -161,7 +162,9 @@ impl Waterfall {
             gl.enable_vertex_attrib_array(2);
 
             // Texture
-            let texture = gl.create_texture().expect("Could not create texture");
+            let texture = gl
+                .create_texture()
+                .expect("Waterfall: Could not create texture");
 
             gl.bind_texture(glow::TEXTURE_2D, Some(texture));
 
@@ -175,12 +178,13 @@ impl Waterfall {
                 glow::TEXTURE_MAG_FILTER,
                 glow::NEAREST as i32,
             );
+            check_for_gl_errors(&gl, "Set texture params");
 
             //gl.tex_storage_2d(glow::TEXTURE_2D, 1, glow::R8, 300, 300);
             gl.tex_image_2d(
                 glow::TEXTURE_2D,
                 0,
-                glow::RED as i32,
+                glow::R8 as i32,
                 width as i32,
                 height as i32,
                 0,
@@ -188,6 +192,8 @@ impl Waterfall {
                 glow::UNSIGNED_BYTE,
                 Some(&buffer),
             );
+            check_for_gl_errors(&gl, "Initializing Texture");
+
             let program = gl.create_program().expect("Cannot create program");
 
             let (vertex_shader_source, fragment_shader_source) = (
@@ -232,18 +238,19 @@ impl Waterfall {
                 .map(|(shader_type, shader_source)| {
                     let shader = gl
                         .create_shader(*shader_type)
-                        .expect("Cannot create shader");
+                        .expect("Waterfall: Cannot create shader");
                     gl.shader_source(shader, &format!("{shader_version}\n{shader_source}"));
                     gl.compile_shader(shader);
                     assert!(
                         gl.get_shader_compile_status(shader),
-                        "Failed to compile {shader_type}: {}",
+                        "Waterfall Failed to compile {shader_type}: {}",
                         gl.get_shader_info_log(shader)
                     );
                     gl.attach_shader(program, shader);
                     shader
                 })
                 .collect();
+            check_for_gl_errors(&gl, "Compiling shaders");
 
             gl.link_program(program);
             assert!(
@@ -251,6 +258,7 @@ impl Waterfall {
                 "{}",
                 gl.get_program_info_log(program)
             );
+            check_for_gl_errors(&gl, "Link GL Program");
 
             for shader in shaders {
                 gl.detach_shader(program, shader);
