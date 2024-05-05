@@ -1,0 +1,271 @@
+use eframe::glow;
+use glow::HasContext as _;
+use log;
+use std::mem::{size_of, transmute};
+
+const SIZE_OF_F32: i32 = size_of::<f32>() as i32;
+
+unsafe fn check_for_gl_errors(gl: &glow::Context, msg: &str) {
+    while let Some(err) = match gl.get_error() {
+        glow::NO_ERROR => None,
+        err => Some(err),
+    } {
+        log::error!("Waterfall {}: GL ERROR {} ({:#X})", msg, err, err);
+    }
+}
+
+pub struct Waterfall {
+    program: glow::Program,
+    texture: glow::Texture,
+    vao: glow::VertexArray,
+    vbo: glow::Buffer,
+    ebo: glow::Buffer,
+    offset: usize,
+}
+
+impl Waterfall {
+    pub fn destroy(&self, gl: &glow::Context) {
+        unsafe {
+            gl.delete_program(self.program);
+            gl.delete_texture(self.texture);
+            gl.delete_vertex_array(self.vao);
+            gl.delete_buffer(self.vbo);
+            gl.delete_buffer(self.ebo);
+            check_for_gl_errors(&gl, "APP CLOSE");
+        }
+    }
+    pub fn paint(&mut self, gl: &glow::Context, _angle: f32) {
+        use glow::HasContext as _;
+
+        self.offset = (self.offset + 1) % 300;
+        let mut new_data: [u8; 300] = [0; 300];
+        for (i, data) in new_data.iter_mut().enumerate() {
+            *data = if self.offset == i { 255 } else { 0 };
+        }
+
+        unsafe {
+            //Clear screen
+            //gl.clear_color(0.0, 0.0, 0.0, 1.0);
+            //gl.clear(glow::COLOR_BUFFER_BIT | glow::DEPTH_BUFFER_BIT);
+
+            // Bind our texture
+            gl.bind_texture(glow::TEXTURE_2D, Some(self.texture));
+
+            // Use our shader program
+            gl.use_program(Some(self.program));
+
+            // Bind our vertex array object
+            gl.bind_vertex_array(Some(self.vao));
+
+            // Draw the elements
+            gl.draw_elements(glow::TRIANGLES, 6, glow::UNSIGNED_INT, 0);
+
+            /*
+            check_for_gl_error!(&gl, "sub_image");
+            gl.use_program(Some(self.program));
+            check_for_gl_error!(&gl, "use program");
+            gl.active_texture(glow::TEXTURE0);
+            gl.bind_texture(glow::TEXTURE_2D, Some(self.texture));
+            check_for_gl_error!(&gl, "bind texture");
+            gl.uniform_1_f32(
+                gl.get_uniform_location(self.program, "u_angle").as_ref(),
+                angle,
+            );
+            check_for_gl_error!(&gl, "set uniform 1 f32");
+            gl.bind_vertex_array(Some(self.vao));
+            check_for_gl_error!(&gl, "bind vertex array");
+            gl.draw_arrays(glow::TRIANGLES, 0, 6);
+            */
+            check_for_gl_errors(&gl, "APP PAINT");
+        }
+    }
+    /*pub fn paint(&mut self, gl: &glow::Context) {
+        unsafe {
+            gl.bind_texture(glow::TEXTURE_2D, Some(self.texture));
+            gl.use_program(Some(self.program));
+            gl.bind_vertex_array(Some(self.vao));
+            gl.draw_elements(glow::TRIANGLES, 6, glow::UNSIGNED_BYTE, 0);
+        }
+    }*/
+    pub fn new(gl: &glow::Context, width: usize, height: usize) -> Self {
+        let vertices: [f32; 32] = [
+            // positions      // colors          // texture coords
+            1.0, 1.0, 0.0, /**/ 1.0, 0.0, 0.0, /**/ 1.0, 1.0, // top right
+            1.0, -1.0, 0.0, /**/ 0.0, 1.0, 0.0, /**/ 1.0, 0.0, // bottom right
+            -1.0, -1.0, 0.0, /**/ 0.0, 0.0, 1.0, /**/ 0.0, 0.0, // bottom left
+            -1.0, 1.0, 0.0, /**/ 1.0, 1.0, 0.0, /**/ 0.0, 1.0, // top left
+        ];
+        let indices: [i32; 6] = [
+            0, 1, 3, // First triangle
+            1, 2, 3,
+        ];
+        let shader_version: &str = if cfg!(target_arch = "wasm32") {
+            "#version 300 es"
+        } else {
+            "#version 330"
+        };
+
+        // Generate something to put into the texture Buffer
+        let mut buffer = vec![0; width * height];
+        // Add some stripes to the texture
+        for (i, val) in buffer.iter_mut().enumerate() {
+            *val = if i % 50 < 25 { 255 } else { 0 };
+            //*val = 255;
+        }
+
+        unsafe {
+            let vao = gl
+                .create_vertex_array()
+                .expect("Could not create vertex array");
+            let vbo = gl.create_buffer().expect("Could not create vertex buffer");
+            let ebo = gl.create_buffer().expect("Could not create element buffer");
+
+            gl.bind_vertex_array(Some(vao));
+
+            gl.bind_buffer(glow::ARRAY_BUFFER, Some(vbo));
+            gl.buffer_data_u8_slice(
+                glow::ARRAY_BUFFER,
+                &transmute::<[f32; 32], [u8; 128]>(vertices),
+                glow::STATIC_DRAW,
+            );
+
+            gl.bind_buffer(glow::ELEMENT_ARRAY_BUFFER, Some(ebo));
+            gl.buffer_data_u8_slice(
+                glow::ELEMENT_ARRAY_BUFFER,
+                &transmute::<[i32; 6], [u8; 24]>(indices),
+                glow::STATIC_DRAW,
+            );
+
+            // Position attribute
+            gl.vertex_attrib_pointer_f32(0, 3, glow::FLOAT, false, 8 * SIZE_OF_F32, 0);
+            gl.enable_vertex_attrib_array(0);
+            // Color attribute
+            gl.vertex_attrib_pointer_f32(
+                1,
+                3,
+                glow::FLOAT,
+                false,
+                8 * SIZE_OF_F32,
+                3 * SIZE_OF_F32,
+            );
+            gl.enable_vertex_attrib_array(1);
+            // Position attribute
+            gl.vertex_attrib_pointer_f32(
+                2,
+                2,
+                glow::FLOAT,
+                false,
+                8 * SIZE_OF_F32,
+                6 * SIZE_OF_F32,
+            );
+            gl.enable_vertex_attrib_array(2);
+
+            // Texture
+            let texture = gl.create_texture().expect("Could not create texture");
+
+            gl.bind_texture(glow::TEXTURE_2D, Some(texture));
+
+            gl.tex_parameter_i32(
+                glow::TEXTURE_2D,
+                glow::TEXTURE_MIN_FILTER,
+                glow::NEAREST as i32,
+            );
+            gl.tex_parameter_i32(
+                glow::TEXTURE_2D,
+                glow::TEXTURE_MAG_FILTER,
+                glow::NEAREST as i32,
+            );
+
+            //gl.tex_storage_2d(glow::TEXTURE_2D, 1, glow::R8, 300, 300);
+            gl.tex_image_2d(
+                glow::TEXTURE_2D,
+                0,
+                glow::RED as i32,
+                width as i32,
+                height as i32,
+                0,
+                glow::RED,
+                glow::UNSIGNED_BYTE,
+                Some(&buffer),
+            );
+            let program = gl.create_program().expect("Cannot create program");
+
+            let (vertex_shader_source, fragment_shader_source) = (
+                r#"
+                    layout (location = 0) in vec3 aPos;
+                    layout (location = 1) in vec3 aColor;
+                    layout (location = 2) in vec3 aTexCoord;
+
+                    out vec3 ourColor;
+                    out vec2 TexCoord;
+
+                    void main()
+                    {
+                        gl_Position = vec4(aPos, 1.0);
+                        ourColor = aColor;
+                        TexCoord = vec2(aTexCoord.x, aTexCoord.y);
+                    }
+                "#,
+                r#"
+                    out vec4 FragColor;
+
+                    in vec3 ourColor;
+                    in vec2 TexCoord;
+
+                    // texture sampler
+                    uniform sampler2D texture1;
+
+                    void main()
+                    {
+                        FragColor = texture(texture1, TexCoord);
+                    }
+                "#,
+            );
+
+            let shader_sources = [
+                (glow::VERTEX_SHADER, vertex_shader_source),
+                (glow::FRAGMENT_SHADER, fragment_shader_source),
+            ];
+
+            let shaders: Vec<_> = shader_sources
+                .iter()
+                .map(|(shader_type, shader_source)| {
+                    let shader = gl
+                        .create_shader(*shader_type)
+                        .expect("Cannot create shader");
+                    gl.shader_source(shader, &format!("{shader_version}\n{shader_source}"));
+                    gl.compile_shader(shader);
+                    assert!(
+                        gl.get_shader_compile_status(shader),
+                        "Failed to compile {shader_type}: {}",
+                        gl.get_shader_info_log(shader)
+                    );
+                    gl.attach_shader(program, shader);
+                    shader
+                })
+                .collect();
+
+            gl.link_program(program);
+            assert!(
+                gl.get_program_link_status(program),
+                "{}",
+                gl.get_program_info_log(program)
+            );
+
+            for shader in shaders {
+                gl.detach_shader(program, shader);
+                gl.delete_shader(shader);
+            }
+            check_for_gl_errors(&gl, "APP INIT");
+
+            Self {
+                program,
+                texture,
+                vao,
+                vbo,
+                ebo,
+                offset: 0_usize,
+            }
+        }
+    }
+}

@@ -1,37 +1,53 @@
+use eframe::{egui_glow, glow};
+use egui::mutex::Mutex;
+use std::sync::Arc;
+
+mod waterfall;
+use waterfall::Waterfall;
+
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
 pub struct TemplateApp {
     // Example stuff:
     label: String,
-
     value: f32,
-}
-
-impl Default for TemplateApp {
-    fn default() -> Self {
-        Self {
-            // Example stuff:
-            label: "Hello World!".to_owned(),
-            value: 2.7,
-        }
-    }
+    /// Behind an `Arc<Mutex<…>>` so we can pass it to [`egui::PaintCallback`] and paint later.
+    waterfall: Arc<Mutex<Waterfall>>,
 }
 
 impl TemplateApp {
     /// Called once before the first frame.
-    pub fn new(_cc: &eframe::CreationContext<'_>) -> Self {
+    pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
         // This is also where you can customize the look and feel of egui using
         // `cc.egui_ctx.set_visuals` and `cc.egui_ctx.set_fonts`.
 
         // Load previous app state (if any).
         // Note that you must enable the `persistence` feature for this to work.
 
-        Default::default()
+        let gl = cc
+            .gl
+            .as_ref()
+            .expect("Could not get gl context from glow backend");
+
+        Self {
+            // Example stuff:
+            label: "Hello World!".to_owned(),
+            value: 2.7,
+            waterfall: Arc::new(Mutex::new(Waterfall::new(gl, 300, 300))),
+        }
     }
 }
 
 impl eframe::App for TemplateApp {
     /// Called by the frame work to save state before shutdown.
+    /// Currently does nothing
     fn save(&mut self, _storage: &mut dyn eframe::Storage) {}
+
+    /// Called once on shutdown, after [`Self::save`].
+    fn on_exit(&mut self, gl: Option<&glow::Context>) {
+        if let Some(gl) = gl {
+            self.waterfall.lock().destroy(gl);
+        }
+    }
 
     /// Called each time the UI needs repainting, which may be many times per second.
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
@@ -71,6 +87,33 @@ impl eframe::App for TemplateApp {
                 self.value += 1.0;
             }
 
+            ui.separator();
+            ui.horizontal(|ui| {
+                ui.spacing_mut().item_spacing.x = 0.0;
+                ui.label("The texture is being painted using ");
+                ui.hyperlink_to("glow", "https://github.com/grovesNL/glow");
+                ui.label(" (OpenGL).");
+            });
+
+            egui::Frame::canvas(ui.style()).show(ui, |ui| {
+                let (rect, response) =
+                    ui.allocate_exact_size(egui::Vec2::splat(300.0), egui::Sense::drag());
+
+                let _angle = response.drag_motion().x * 0.01;
+
+                // Clone locals so we can move them into the paint callback:
+                let waterfall = self.waterfall.clone();
+
+                let callback = egui::PaintCallback {
+                    rect,
+                    callback: std::sync::Arc::new(egui_glow::CallbackFn::new(
+                        move |_info, painter| {
+                            waterfall.lock().paint(painter.gl(), _angle);
+                        },
+                    )),
+                };
+                ui.painter().add(callback);
+            });
             ui.separator();
 
             ui.add(egui::github_link_file!(
