@@ -217,7 +217,7 @@ impl Waterfall {
             gl.tex_image_2d(
                 TEXTURE_2D,
                 0,
-                if cfg!(target_os = "android") {
+                if cfg!(target_os = "android") || cfg!(target_arch = "wasm32") {
                     glow::RGB
                 } else {
                     glow::SRGB
@@ -250,6 +250,8 @@ impl Waterfall {
                     }
                 "#,
                 r#"
+                    precision mediump float;
+
                     out vec4 FragColor;
 
                     in vec3 ourColor;
