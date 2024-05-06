@@ -79,6 +79,10 @@ impl Waterfall {
             );
             self.offset = (self.offset + 1) % 300;
 
+            if let Some(uniform) = gl.get_uniform_location(self.program, "offset") {
+                gl.uniform_1_f32(Some(&uniform), self.offset as f32 / 300.0);
+            }
+
             // Draw the elements
             gl.draw_elements(glow::TRIANGLES, 6, glow::UNSIGNED_INT, 0);
 
@@ -219,10 +223,11 @@ impl Waterfall {
 
                     // texture sampler
                     uniform sampler2D texture1;
+                    uniform float offset;
 
                     void main()
                     {
-                        FragColor = texture(texture1, TexCoord);
+                        FragColor = texture(texture1, vec2(TexCoord.x, TexCoord.y + offset));
                     }
                 "#,
             );
