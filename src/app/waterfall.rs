@@ -1,5 +1,6 @@
-use eframe::glow::{self, PixelUnpackData};
+use eframe::glow::{self, PixelUnpackData, TEXTURE0, TEXTURE1, UNSIGNED_BYTE};
 use glow::HasContext as _;
+use glow::{NEAREST, TEXTURE_1D, TEXTURE_2D, TEXTURE_MAG_FILTER, TEXTURE_MIN_FILTER};
 use log;
 use std::mem::{size_of, transmute};
 
@@ -27,9 +28,12 @@ mod deadbeef_rand {
 }
 use deadbeef_rand::rand;
 
+use crate::app::turbo_colormap;
+
 pub struct Waterfall {
     program: glow::Program,
     texture: glow::Texture,
+    color_lut: glow::Texture,
     vao: glow::VertexArray,
     vbo: glow::Buffer,
     ebo: glow::Buffer,
@@ -56,14 +60,24 @@ impl Waterfall {
         }
 
         unsafe {
-            // Bind our texture
+            // Bind our texturs
+            gl.active_texture(TEXTURE1);
+            check_for_gl_errors(&gl, "Active texture 1");
+            gl.bind_texture(glow::TEXTURE_1D, Some(self.color_lut));
+            check_for_gl_errors(&gl, "bind lut");
+
+            gl.active_texture(TEXTURE0);
+            check_for_gl_errors(&gl, "Active texture 0");
             gl.bind_texture(glow::TEXTURE_2D, Some(self.texture));
+            check_for_gl_errors(&gl, "bind texture");
 
             // Use our shader program
             gl.use_program(Some(self.program));
+            check_for_gl_errors(&gl, "use program");
 
             // Bind our vertex array object
             gl.bind_vertex_array(Some(self.vao));
+            check_for_gl_errors(&gl, "bind vao");
 
             // Update texture
             gl.tex_sub_image_2d(
@@ -77,11 +91,13 @@ impl Waterfall {
                 glow::UNSIGNED_BYTE,
                 PixelUnpackData::Slice(&new_data),
             );
+            check_for_gl_errors(&gl, "update texture");
             self.offset = (self.offset + 1) % 300;
 
             if let Some(uniform) = gl.get_uniform_location(self.program, "offset") {
                 gl.uniform_1_f32(Some(&uniform), self.offset as f32 / 300.0);
             }
+            check_for_gl_errors(&gl, "update uniform");
 
             // Draw the elements
             gl.draw_elements(glow::TRIANGLES, 6, glow::UNSIGNED_INT, 0);
@@ -171,16 +187,8 @@ impl Waterfall {
 
             gl.bind_texture(glow::TEXTURE_2D, Some(texture));
 
-            gl.tex_parameter_i32(
-                glow::TEXTURE_2D,
-                glow::TEXTURE_MIN_FILTER,
-                glow::NEAREST as i32,
-            );
-            gl.tex_parameter_i32(
-                glow::TEXTURE_2D,
-                glow::TEXTURE_MAG_FILTER,
-                glow::NEAREST as i32,
-            );
+            gl.tex_parameter_i32(TEXTURE_2D, TEXTURE_MIN_FILTER, NEAREST as i32);
+            gl.tex_parameter_i32(TEXTURE_2D, TEXTURE_MAG_FILTER, NEAREST as i32);
             check_for_gl_errors(&gl, "Set texture params");
 
             //gl.tex_storage_2d(glow::TEXTURE_2D, 1, glow::R8, 300, 300);
@@ -196,6 +204,25 @@ impl Waterfall {
                 Some(&buffer),
             );
             check_for_gl_errors(&gl, "Initializing Texture");
+
+            let color_lut = gl
+                .create_texture()
+                .expect("Waterfall: could not create LUT");
+            gl.bind_texture(TEXTURE_1D, Some(color_lut));
+            gl.tex_parameter_i32(TEXTURE_1D, TEXTURE_MIN_FILTER, NEAREST as i32);
+            gl.tex_parameter_i32(TEXTURE_1D, TEXTURE_MAG_FILTER, NEAREST as i32);
+            check_for_gl_errors(&gl, "Set LUT params");
+            gl.tex_image_1d(
+                TEXTURE_1D,
+                0,
+                glow::SRGB as i32,
+                256,
+                0,
+                glow::RGB,
+                UNSIGNED_BYTE,
+                Some(&turbo_colormap::TURBO_SRGB_BYTES),
+            );
+            check_for_gl_errors(&gl, "Initializing LUT");
 
             let program = gl.create_program().expect("Cannot create program");
 
@@ -223,11 +250,13 @@ impl Waterfall {
 
                     // texture sampler
                     uniform sampler2D texture1;
+                    uniform sampler1D LUT;
                     uniform float offset;
 
                     void main()
                     {
-                        FragColor = texture(texture1, vec2(TexCoord.x, TexCoord.y + offset));
+                        float val = texture(texture1, vec2(TexCoord.x, TexCoord.y + offset)).x;
+                        FragColor = texture(LUT, val);
                     }
                 "#,
             );
@@ -268,11 +297,16 @@ impl Waterfall {
                 gl.detach_shader(program, shader);
                 gl.delete_shader(shader);
             }
+
+            gl.use_program(Some(program));
+            gl.uniform_1_i32(gl.get_uniform_location(program, "texture1").as_ref(), 0);
+            gl.uniform_1_i32(gl.get_uniform_location(program, "LUT").as_ref(), 1);
             check_for_gl_errors(&gl, "APP INIT");
 
             Self {
                 program,
                 texture,
+                color_lut,
                 vao,
                 vbo,
                 ebo,

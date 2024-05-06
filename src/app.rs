@@ -4,6 +4,7 @@ use std::sync::Arc;
 
 mod waterfall;
 use waterfall::Waterfall;
+pub mod turbo_colormap;
 
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
 pub struct TemplateApp {
