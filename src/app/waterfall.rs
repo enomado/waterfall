@@ -1,4 +1,4 @@
-use eframe::glow;
+use eframe::glow::{self, PixelUnpackData};
 use glow::HasContext as _;
 use log;
 use std::mem::{size_of, transmute};
@@ -13,6 +13,19 @@ unsafe fn check_for_gl_errors(gl: &glow::Context, msg: &str) {
         log::error!("Waterfall {}: GL ERROR {} ({:#X})", msg, err, err);
     }
 }
+
+mod deadbeef_rand {
+    static mut RNG_SEED: u32 = 0x3d2faba7;
+    static mut RNG_BEEF: u32 = 0xdeadbeef;
+    pub fn rand() -> u8 {
+        unsafe {
+            RNG_SEED = (RNG_SEED << 7) ^ ((RNG_SEED >> 25) + RNG_BEEF);
+            RNG_BEEF = (RNG_BEEF << 7) ^ ((RNG_BEEF >> 25) + 0xdeadbeef);
+            (RNG_SEED & 0xff) as u8
+        }
+    }
+}
+use deadbeef_rand::rand;
 
 pub struct Waterfall {
     program: glow::Program,
@@ -37,17 +50,12 @@ impl Waterfall {
     pub fn paint(&mut self, gl: &glow::Context, _angle: f32) {
         use glow::HasContext as _;
 
-        self.offset = (self.offset + 1) % 300;
         let mut new_data: [u8; 300] = [0; 300];
-        for (i, data) in new_data.iter_mut().enumerate() {
-            *data = if self.offset == i { 255 } else { 0 };
+        for data in new_data.iter_mut() {
+            *data = rand();
         }
 
         unsafe {
-            //Clear screen
-            //gl.clear_color(0.0, 0.0, 0.0, 1.0);
-            //gl.clear(glow::COLOR_BUFFER_BIT | glow::DEPTH_BUFFER_BIT);
-
             // Bind our texture
             gl.bind_texture(glow::TEXTURE_2D, Some(self.texture));
 
@@ -57,36 +65,27 @@ impl Waterfall {
             // Bind our vertex array object
             gl.bind_vertex_array(Some(self.vao));
 
+            // Update texture
+            gl.tex_sub_image_2d(
+                glow::TEXTURE_2D,
+                0,
+                0,
+                self.offset as i32,
+                300,
+                1,
+                glow::RED,
+                glow::UNSIGNED_BYTE,
+                PixelUnpackData::Slice(&new_data),
+            );
+            self.offset = (self.offset + 1) % 300;
+
             // Draw the elements
             gl.draw_elements(glow::TRIANGLES, 6, glow::UNSIGNED_INT, 0);
 
-            /*
-            check_for_gl_error!(&gl, "sub_image");
-            gl.use_program(Some(self.program));
-            check_for_gl_error!(&gl, "use program");
-            gl.active_texture(glow::TEXTURE0);
-            gl.bind_texture(glow::TEXTURE_2D, Some(self.texture));
-            check_for_gl_error!(&gl, "bind texture");
-            gl.uniform_1_f32(
-                gl.get_uniform_location(self.program, "u_angle").as_ref(),
-                angle,
-            );
-            check_for_gl_error!(&gl, "set uniform 1 f32");
-            gl.bind_vertex_array(Some(self.vao));
-            check_for_gl_error!(&gl, "bind vertex array");
-            gl.draw_arrays(glow::TRIANGLES, 0, 6);
-            */
+            // Log and clear the error queue of any errors
             check_for_gl_errors(&gl, "APP PAINT");
         }
     }
-    /*pub fn paint(&mut self, gl: &glow::Context) {
-        unsafe {
-            gl.bind_texture(glow::TEXTURE_2D, Some(self.texture));
-            gl.use_program(Some(self.program));
-            gl.bind_vertex_array(Some(self.vao));
-            gl.draw_elements(glow::TRIANGLES, 6, glow::UNSIGNED_BYTE, 0);
-        }
-    }*/
     pub fn new(gl: &glow::Context, width: usize, height: usize) -> Self {
         let vertices: [f32; 32] = [
             // positions      // colors          // texture coords
