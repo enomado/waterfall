@@ -1,6 +1,6 @@
 use eframe::glow::{self, PixelUnpackData, TEXTURE0, TEXTURE1, UNSIGNED_BYTE};
 use glow::HasContext as _;
-use glow::{NEAREST, TEXTURE_1D, TEXTURE_2D, TEXTURE_MAG_FILTER, TEXTURE_MIN_FILTER};
+use glow::{NEAREST, TEXTURE_2D, TEXTURE_MAG_FILTER, TEXTURE_MIN_FILTER};
 use log;
 use std::mem::{size_of, transmute};
 
@@ -63,7 +63,7 @@ impl Waterfall {
             // Bind our texturs
             gl.active_texture(TEXTURE1);
             check_for_gl_errors(&gl, "Active texture 1");
-            gl.bind_texture(glow::TEXTURE_1D, Some(self.color_lut));
+            gl.bind_texture(glow::TEXTURE_2D, Some(self.color_lut));
             check_for_gl_errors(&gl, "bind lut");
 
             gl.active_texture(TEXTURE0);
@@ -208,15 +208,22 @@ impl Waterfall {
             let color_lut = gl
                 .create_texture()
                 .expect("Waterfall: could not create LUT");
-            gl.bind_texture(TEXTURE_1D, Some(color_lut));
-            gl.tex_parameter_i32(TEXTURE_1D, TEXTURE_MIN_FILTER, NEAREST as i32);
-            gl.tex_parameter_i32(TEXTURE_1D, TEXTURE_MAG_FILTER, NEAREST as i32);
-            check_for_gl_errors(&gl, "Set LUT params");
-            gl.tex_image_1d(
-                TEXTURE_1D,
+            gl.bind_texture(TEXTURE_2D, Some(color_lut));
+            check_for_gl_errors(&gl, "Setup Bind LUT");
+            gl.tex_parameter_i32(TEXTURE_2D, TEXTURE_MIN_FILTER, NEAREST as i32);
+            check_for_gl_errors(&gl, "Set LUT MIN_FILTER");
+            gl.tex_parameter_i32(TEXTURE_2D, TEXTURE_MAG_FILTER, NEAREST as i32);
+            check_for_gl_errors(&gl, "Set LUT MAG_FILTER");
+            gl.tex_image_2d(
+                TEXTURE_2D,
                 0,
-                glow::SRGB as i32,
+                if cfg!(target_os = "android") {
+                    glow::RGB
+                } else {
+                    glow::SRGB
+                } as i32,
                 256,
+                1,
                 0,
                 glow::RGB,
                 UNSIGNED_BYTE,
@@ -250,13 +257,13 @@ impl Waterfall {
 
                     // texture sampler
                     uniform sampler2D texture1;
-                    uniform sampler1D LUT;
+                    uniform sampler2D LUT;
                     uniform float offset;
 
                     void main()
                     {
                         float val = texture(texture1, vec2(TexCoord.x, TexCoord.y + offset)).x;
-                        FragColor = texture(LUT, val);
+                        FragColor = texture(LUT, vec2(val, 0));
                     }
                 "#,
             );
