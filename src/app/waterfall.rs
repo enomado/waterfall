@@ -3,6 +3,7 @@ use glow::HasContext as _;
 use glow::{NEAREST, TEXTURE_2D, TEXTURE_MAG_FILTER, TEXTURE_MIN_FILTER};
 use log;
 use std::mem::{size_of, transmute};
+use std::sync::mpsc::Receiver;
 
 const SIZE_OF_F32: i32 = size_of::<f32>() as i32;
 
@@ -15,19 +16,6 @@ unsafe fn check_for_gl_errors(gl: &glow::Context, msg: &str) {
     }
 }
 
-mod deadbeef_rand {
-    static mut RNG_SEED: u32 = 0x3d2faba7;
-    static mut RNG_BEEF: u32 = 0xdeadbeef;
-    pub fn rand() -> u8 {
-        unsafe {
-            RNG_SEED = (RNG_SEED << 7) ^ ((RNG_SEED >> 25).wrapping_add(RNG_BEEF));
-            RNG_BEEF = (RNG_BEEF << 7) ^ ((RNG_BEEF >> 25).wrapping_add(0xdeadbeef));
-            (RNG_SEED & 0xff) as u8
-        }
-    }
-}
-use deadbeef_rand::rand;
-
 use crate::app::turbo_colormap;
 
 pub struct Waterfall {
@@ -38,6 +26,8 @@ pub struct Waterfall {
     vbo: glow::Buffer,
     ebo: glow::Buffer,
     offset: usize,
+    width: usize,
+    fft_in: Receiver<Vec<u8>>,
 }
 
 impl Waterfall {
@@ -53,11 +43,6 @@ impl Waterfall {
     }
     pub fn paint(&mut self, gl: &glow::Context, _angle: f32) {
         use glow::HasContext as _;
-
-        let mut new_data: [u8; 300] = [0; 300];
-        for data in new_data.iter_mut() {
-            *data = rand();
-        }
 
         unsafe {
             // Bind our texturs
@@ -80,22 +65,27 @@ impl Waterfall {
             check_for_gl_errors(&gl, "bind vao");
 
             // Update texture
-            gl.tex_sub_image_2d(
-                glow::TEXTURE_2D,
-                0,
-                0,
-                self.offset as i32,
-                300,
-                1,
-                glow::RED,
-                glow::UNSIGNED_BYTE,
-                PixelUnpackData::Slice(&new_data),
-            );
-            check_for_gl_errors(&gl, "update texture");
-            self.offset = (self.offset + 1) % 300;
+            while let Ok(fft) = self.fft_in.try_recv() {
+                if fft.len() != self.width {
+                    todo!();
+                }
+                gl.tex_sub_image_2d(
+                    glow::TEXTURE_2D,
+                    0,
+                    0,
+                    self.offset as i32,
+                    self.width as i32,
+                    1,
+                    glow::RED,
+                    glow::UNSIGNED_BYTE,
+                    PixelUnpackData::Slice(&fft),
+                );
+                check_for_gl_errors(&gl, "update texture");
+                self.offset = (self.offset + 1) % self.width;
+            }
 
             if let Some(uniform) = gl.get_uniform_location(self.program, "offset") {
-                gl.uniform_1_f32(Some(&uniform), self.offset as f32 / 300.0);
+                gl.uniform_1_f32(Some(&uniform), self.offset as f32 / self.width as f32);
             }
             check_for_gl_errors(&gl, "update uniform");
 
@@ -106,7 +96,7 @@ impl Waterfall {
             check_for_gl_errors(&gl, "APP PAINT");
         }
     }
-    pub fn new(gl: &glow::Context, width: usize, height: usize) -> Self {
+    pub fn new(gl: &glow::Context, width: usize, height: usize, fft_in: Receiver<Vec<u8>>) -> Self {
         let vertices: [f32; 32] = [
             // positions      // colors          // texture coords
             1.0, 1.0, 0.0, /**/ 1.0, 0.0, 0.0, /**/ 1.0, 1.0, // top right
@@ -320,6 +310,8 @@ impl Waterfall {
                 vbo,
                 ebo,
                 offset: 0_usize,
+                width,
+                fft_in,
             }
         }
     }

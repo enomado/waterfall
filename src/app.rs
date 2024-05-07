@@ -1,10 +1,24 @@
 use eframe::{egui_glow, glow};
 use egui::mutex::Mutex;
+use std::sync::mpsc;
 use std::sync::Arc;
 
 mod waterfall;
 use waterfall::Waterfall;
 pub mod turbo_colormap;
+
+mod deadbeef_rand {
+    static mut RNG_SEED: u32 = 0x3d2faba7;
+    static mut RNG_BEEF: u32 = 0xdeadbeef;
+    pub fn rand() -> u8 {
+        unsafe {
+            RNG_SEED = (RNG_SEED << 7) ^ ((RNG_SEED >> 25).wrapping_add(RNG_BEEF));
+            RNG_BEEF = (RNG_BEEF << 7) ^ ((RNG_BEEF >> 25).wrapping_add(0xdeadbeef));
+            (RNG_SEED & 0xff) as u8
+        }
+    }
+}
+use deadbeef_rand::rand;
 
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
 pub struct TemplateApp {
@@ -13,6 +27,7 @@ pub struct TemplateApp {
     value: f32,
     /// Behind an `Arc<Mutex<…>>` so we can pass it to [`egui::PaintCallback`] and paint later.
     waterfall: Arc<Mutex<Waterfall>>,
+    fft_sender: mpsc::Sender<Vec<u8>>,
 }
 
 impl TemplateApp {
@@ -24,6 +39,7 @@ impl TemplateApp {
         // Load previous app state (if any).
         // Note that you must enable the `persistence` feature for this to work.
 
+        let (tx, rx) = mpsc::channel();
         let gl = cc
             .gl
             .as_ref()
@@ -33,7 +49,8 @@ impl TemplateApp {
             // Example stuff:
             label: "Hello World!".to_owned(),
             value: 2.7,
-            waterfall: Arc::new(Mutex::new(Waterfall::new(gl, 300, 300))),
+            waterfall: Arc::new(Mutex::new(Waterfall::new(gl, 300, 300, rx))),
+            fft_sender: tx,
         }
     }
 }
@@ -103,6 +120,12 @@ impl eframe::App for TemplateApp {
                     ui.allocate_exact_size(egui::Vec2::splat(300.0), egui::Sense::drag());
 
                 let _angle = response.drag_motion().x * 0.01;
+
+                let mut new_data = vec![0_u8; 300];
+                for data in new_data.iter_mut() {
+                    *data = rand();
+                }
+                self.fft_sender.send(new_data).unwrap();
 
                 // Clone locals so we can move them into the paint callback:
                 let waterfall = self.waterfall.clone();
