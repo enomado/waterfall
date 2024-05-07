@@ -1,4 +1,6 @@
-use eframe::glow::{self, PixelUnpackData, TEXTURE0, TEXTURE1, UNSIGNED_BYTE};
+use eframe::glow::{
+    self, PixelUnpackData, CLAMP_TO_EDGE, TEXTURE0, TEXTURE1, TEXTURE_WRAP_S, UNSIGNED_BYTE,
+};
 use glow::HasContext as _;
 use glow::{NEAREST, TEXTURE_2D, TEXTURE_MAG_FILTER, TEXTURE_MIN_FILTER};
 use log;
@@ -204,6 +206,8 @@ impl Waterfall {
             check_for_gl_errors(&gl, "Set LUT MIN_FILTER");
             gl.tex_parameter_i32(TEXTURE_2D, TEXTURE_MAG_FILTER, NEAREST as i32);
             check_for_gl_errors(&gl, "Set LUT MAG_FILTER");
+            gl.tex_parameter_i32(TEXTURE_2D, TEXTURE_WRAP_S, CLAMP_TO_EDGE as i32);
+            check_for_gl_errors(&gl, "Set LUT wrap mode");
             gl.tex_image_2d(
                 TEXTURE_2D,
                 0,
