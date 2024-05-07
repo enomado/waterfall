@@ -20,6 +20,8 @@ mod deadbeef_rand {
 }
 use deadbeef_rand::rand;
 
+const WF_SIZE: usize = 1024;
+
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
 pub struct TemplateApp {
     // Example stuff:
@@ -49,7 +51,7 @@ impl TemplateApp {
             // Example stuff:
             label: "Hello World!".to_owned(),
             value: 2.7,
-            waterfall: Arc::new(Mutex::new(Waterfall::new(gl, 300, 300, rx))),
+            waterfall: Arc::new(Mutex::new(Waterfall::new(gl, WF_SIZE, WF_SIZE, rx))),
             fft_sender: tx,
         }
     }
@@ -115,41 +117,35 @@ impl eframe::App for TemplateApp {
                 ui.label(" (OpenGL).");
             });
 
-            egui::Frame::canvas(ui.style()).show(ui, |ui| {
-                let (rect, response) =
-                    ui.allocate_exact_size(egui::Vec2::splat(300.0), egui::Sense::drag());
-
-                let _angle = response.drag_motion().x * 0.01;
-
-                let mut new_data = vec![0_u8; 300];
-                for data in new_data.iter_mut() {
-                    *data = rand();
-                }
-                self.fft_sender.send(new_data).unwrap();
-
-                // Clone locals so we can move them into the paint callback:
-                let waterfall = self.waterfall.clone();
-
-                let callback = egui::PaintCallback {
-                    rect,
-                    callback: std::sync::Arc::new(egui_glow::CallbackFn::new(
-                        move |_info, painter| {
-                            waterfall.lock().paint(painter.gl(), _angle);
-                        },
-                    )),
-                };
-                ui.painter().add(callback);
-            });
-            ui.separator();
-
-            ui.add(egui::github_link_file!(
-                "https://github.com/emilk/eframe_template/blob/main/",
-                "Source code."
-            ));
-
             ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
                 powered_by_egui_and_eframe(ui);
                 egui::warn_if_debug_build(ui);
+                egui::Frame::canvas(ui.style()).show(ui, |ui| {
+                    let available_space = ui.available_size();
+                    let (rect, response) =
+                        ui.allocate_exact_size(available_space, egui::Sense::drag());
+
+                    let _angle = response.drag_motion().x * 0.01;
+
+                    let mut new_data = vec![0_u8; WF_SIZE];
+                    for data in new_data.iter_mut() {
+                        *data = rand();
+                    }
+                    self.fft_sender.send(new_data).unwrap();
+
+                    // Clone locals so we can move them into the paint callback:
+                    let waterfall = self.waterfall.clone();
+
+                    let callback = egui::PaintCallback {
+                        rect,
+                        callback: std::sync::Arc::new(egui_glow::CallbackFn::new(
+                            move |_info, painter| {
+                                waterfall.lock().paint(painter.gl(), _angle);
+                            },
+                        )),
+                    };
+                    ui.painter().add(callback);
+                });
             });
         });
     }

@@ -119,8 +119,10 @@ impl Waterfall {
         // Generate something to put into the texture Buffer
         let mut buffer = vec![0; width * height];
         // Add some stripes to the texture
+        let stripes = 8;
+        let slen = width / stripes;
         for (i, val) in buffer.iter_mut().enumerate() {
-            *val = if i % 50 < 25 { 255 } else { 0 };
+            *val = if i % slen < slen / 2 { 255 } else { 0 };
             //*val = 255;
         }
 
