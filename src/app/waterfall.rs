@@ -20,8 +20,8 @@ mod deadbeef_rand {
     static mut RNG_BEEF: u32 = 0xdeadbeef;
     pub fn rand() -> u8 {
         unsafe {
-            RNG_SEED = (RNG_SEED << 7) ^ ((RNG_SEED >> 25) + RNG_BEEF);
-            RNG_BEEF = (RNG_BEEF << 7) ^ ((RNG_BEEF >> 25) + 0xdeadbeef);
+            RNG_SEED = (RNG_SEED << 7) ^ ((RNG_SEED >> 25).wrapping_add(RNG_BEEF));
+            RNG_BEEF = (RNG_BEEF << 7) ^ ((RNG_BEEF >> 25).wrapping_add(0xdeadbeef));
             (RNG_SEED & 0xff) as u8
         }
     }
