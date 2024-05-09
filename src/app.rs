@@ -1,26 +1,14 @@
 use eframe::{egui_glow, glow};
 use egui::mutex::Mutex;
-use std::sync::mpsc;
 use std::sync::Arc;
 
 mod waterfall;
 use waterfall::Waterfall;
+mod audio_fft;
+use audio_fft::AudioFFT;
 pub mod turbo_colormap;
 
-mod deadbeef_rand {
-    static mut RNG_SEED: u32 = 0x3d2faba7;
-    static mut RNG_BEEF: u32 = 0xdeadbeef;
-    pub fn rand() -> u8 {
-        unsafe {
-            RNG_SEED = (RNG_SEED << 7) ^ ((RNG_SEED >> 25).wrapping_add(RNG_BEEF));
-            RNG_BEEF = (RNG_BEEF << 7) ^ ((RNG_BEEF >> 25).wrapping_add(0xdeadbeef));
-            (RNG_SEED & 0xff) as u8
-        }
-    }
-}
-use deadbeef_rand::rand;
-
-const WF_SIZE: usize = 1024;
+const FFT_SIZE: usize = 1024;
 
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
 pub struct TemplateApp {
@@ -29,7 +17,7 @@ pub struct TemplateApp {
     value: f32,
     /// Behind an `Arc<Mutex<…>>` so we can pass it to [`egui::PaintCallback`] and paint later.
     waterfall: Arc<Mutex<Waterfall>>,
-    fft_sender: mpsc::Sender<Vec<u8>>,
+    _stream: AudioFFT,
 }
 
 impl TemplateApp {
@@ -41,7 +29,8 @@ impl TemplateApp {
         // Load previous app state (if any).
         // Note that you must enable the `persistence` feature for this to work.
 
-        let (tx, rx) = mpsc::channel();
+        let (stream, rx) = AudioFFT::new(FFT_SIZE).unwrap();
+        let wf_size = stream.output_len;
         let gl = cc
             .gl
             .as_ref()
@@ -51,8 +40,8 @@ impl TemplateApp {
             // Example stuff:
             label: "Hello World!".to_owned(),
             value: 2.7,
-            waterfall: Arc::new(Mutex::new(Waterfall::new(gl, WF_SIZE, WF_SIZE, rx))),
-            fft_sender: tx,
+            waterfall: Arc::new(Mutex::new(Waterfall::new(gl, wf_size, wf_size, rx))),
+            _stream: stream,
         }
     }
 }
@@ -126,12 +115,6 @@ impl eframe::App for TemplateApp {
                         ui.allocate_exact_size(available_space, egui::Sense::drag());
 
                     let _angle = response.drag_motion().x * 0.01;
-
-                    let mut new_data = vec![0_u8; WF_SIZE];
-                    for data in new_data.iter_mut() {
-                        *data = rand();
-                    }
-                    self.fft_sender.send(new_data).unwrap();
 
                     // Clone locals so we can move them into the paint callback:
                     let waterfall = self.waterfall.clone();

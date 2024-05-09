@@ -185,7 +185,6 @@ impl Waterfall {
             gl.tex_parameter_i32(TEXTURE_2D, TEXTURE_MAG_FILTER, NEAREST as i32);
             check_for_gl_errors(&gl, "Set texture params");
 
-            //gl.tex_storage_2d(glow::TEXTURE_2D, 1, glow::R8, 300, 300);
             gl.tex_image_2d(
                 glow::TEXTURE_2D,
                 0,
@@ -195,7 +194,8 @@ impl Waterfall {
                 0,
                 glow::RED,
                 glow::UNSIGNED_BYTE,
-                Some(&buffer),
+                //Some(&buffer), // This segfaults with large buffers
+                None,
             );
             check_for_gl_errors(&gl, "Initializing Texture");
 

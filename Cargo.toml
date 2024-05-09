@@ -7,8 +7,11 @@ edition = "2021"
 
 # Common dependencies
 [dependencies]
+anyhow = "1.0.83"
+cpal = "0.15.3"
 egui = "0.27.0"
 log = "0.4.21"
+realfft = "3.3.0"
 
 # eframe features for non android targets
 [target.'cfg(not(target_os = "android"))'.dependencies.eframe]
