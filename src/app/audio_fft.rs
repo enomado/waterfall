@@ -54,7 +54,12 @@ impl AudioFFT {
                         .send(("FFT Output", PlotData::Bode32(fft_out.clone())))
                         .unwrap();
                     fft_in.clear();
-                    let output: Vec<u8> = fft_out.iter().map(|c| (c.arg() * 255.0) as u8).collect();
+                    let output: Vec<u8> = fft_out
+                        .iter()
+                        .map(|c| {
+                            (((c.re * c.re) + (c.im * c.im)).sqrt() / size as f32 * 255.0) as u8
+                        })
+                        .collect();
                     assert_eq!(output_len, output.len());
                     plot_tx
                         .send(("FFT Processed Output", PlotData::U8(output.clone())))
