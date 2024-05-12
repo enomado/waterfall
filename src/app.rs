@@ -2,6 +2,8 @@ use eframe::{egui_glow, glow};
 use egui::mutex::Mutex;
 use std::sync::Arc;
 
+pub mod debug_plot;
+use debug_plot::DebugPlots;
 mod waterfall;
 use waterfall::Waterfall;
 mod audio_fft;
@@ -10,8 +12,8 @@ pub mod turbo_colormap;
 
 const FFT_SIZE: usize = 1024;
 
-/// We derive Deserialize/Serialize so we can persist app state on shutdown.
 pub struct TemplateApp {
+    plots: DebugPlots,
     // Example stuff:
     label: String,
     value: f32,
@@ -29,7 +31,8 @@ impl TemplateApp {
         // Load previous app state (if any).
         // Note that you must enable the `persistence` feature for this to work.
 
-        let (stream, rx) = AudioFFT::new(FFT_SIZE).unwrap();
+        let plots = DebugPlots::new();
+        let (stream, rx) = AudioFFT::new(FFT_SIZE, plots.get_sender()).unwrap();
         let wf_size = stream.output_len;
         let gl = cc
             .gl
@@ -37,6 +40,7 @@ impl TemplateApp {
             .expect("Could not get gl context from glow backend");
 
         Self {
+            plots,
             // Example stuff:
             label: "Hello World!".to_owned(),
             value: 2.7,
@@ -64,6 +68,7 @@ impl eframe::App for TemplateApp {
         // For inspiration and more examples, go to https://emilk.github.io/egui
 
         ctx.request_repaint();
+        self.plots.update_plots();
 
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
             // The top panel is often a good place for a menu bar:
@@ -77,12 +82,15 @@ impl eframe::App for TemplateApp {
                             ctx.send_viewport_cmd(egui::ViewportCommand::Close);
                         }
                     });
-                    ui.add_space(16.0);
                 }
+                self.plots.render_menu_buttons(ui);
+                ui.add_space(16.0);
 
                 egui::widgets::global_dark_light_mode_buttons(ui);
             });
         });
+
+        self.plots.render_plot_windows(ctx);
 
         egui::CentralPanel::default().show(ctx, |ui| {
             // The central panel the region left after adding TopPanel's and SidePanel's

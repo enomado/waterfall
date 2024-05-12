@@ -5,7 +5,9 @@ use cpal::{
     BufferSize, StreamConfig,
 };
 use realfft::RealFftPlanner;
-use std::sync::mpsc;
+use std::sync::mpsc::{self, Sender};
+
+use super::debug_plot::PlotData;
 
 pub struct AudioFFT {
     pub stream: cpal::Stream,
@@ -13,7 +15,10 @@ pub struct AudioFFT {
 }
 
 impl AudioFFT {
-    pub fn new(size: usize) -> Result<(Self, mpsc::Receiver<Vec<u8>>)> {
+    pub fn new(
+        size: usize,
+        plot_tx: Sender<(&'static str, PlotData)>,
+    ) -> Result<(Self, mpsc::Receiver<Vec<u8>>)> {
         let output_len = size / 2 + 1;
 
         // Create mpsc queue
@@ -45,9 +50,15 @@ impl AudioFFT {
                     assert_eq!(size, fft_in.len());
                     fft.process_with_scratch(&mut fft_in, &mut fft_out, &mut fft_scratch)
                         .unwrap();
+                    plot_tx
+                        .send(("FFT Output", PlotData::Bode32(fft_out.clone())))
+                        .unwrap();
                     fft_in.clear();
                     let output: Vec<u8> = fft_out.iter().map(|c| (c.arg() * 255.0) as u8).collect();
                     assert_eq!(output_len, output.len());
+                    plot_tx
+                        .send(("FFT Processed Output", PlotData::U8(output.clone())))
+                        .unwrap();
                     tx.send(output).unwrap();
                 }
             },
