@@ -57,7 +57,8 @@ impl AudioFFT {
                     let output: Vec<u8> = fft_out
                         .iter()
                         .map(|c| {
-                            (((c.re * c.re) + (c.im * c.im)).sqrt() / size as f32 * 255.0) as u8
+                            (((c.re * c.re) + (c.im * c.im)).sqrt() / output_len as f32 * 255.0)
+                                as u8
                         })
                         .collect();
                     assert_eq!(output_len, output.len());

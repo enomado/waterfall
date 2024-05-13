@@ -71,7 +71,7 @@ impl DebugPlots {
                         plot_ui.line(line);
                         plot_ui.set_plot_bounds(PlotBounds::from_min_max(
                             [-1.0, -1.0],
-                            [(v.len() + 1) as f64, 256.0],
+                            [(v.len() + 1) as f64, core::u8::MAX as f64 + 1.0],
                         ));
                     });
                 }
@@ -79,17 +79,24 @@ impl DebugPlots {
                     ui.heading("Bode Plot");
                     let mag_line =
                         Line::new(PlotPoints::from_iter(v.iter().enumerate().map(|(i, c)| {
-                            [i as f64, ((c.re * c.re) + (c.im * c.im)).sqrt() as f64]
+                            [
+                                i as f64,
+                                ((c.re * c.re) + (c.im * c.im)).sqrt() as f64 / v.len() as f64,
+                            ]
                         })));
                     let phase_line = Line::new(PlotPoints::from_iter(
                         v.iter()
                             .enumerate()
-                            .map(|(i, c)| [i as f64, c.arg() as f64]),
+                            .map(|(i, c)| [i as f64, c.arg() as f64 / core::f64::consts::PI]),
                     ));
                     let plot = Plot::new(title);
                     plot.show(ui, |plot_ui| {
                         plot_ui.line(mag_line);
                         plot_ui.line(phase_line);
+                        plot_ui.set_plot_bounds(PlotBounds::from_min_max(
+                            [0.0, -1.0],
+                            [(v.len() + 1) as f64, 1.0],
+                        ));
                     });
                 }
             };
