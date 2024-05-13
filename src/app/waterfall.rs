@@ -88,7 +88,7 @@ impl Waterfall {
             }
 
             if let Some(uniform) = gl.get_uniform_location(self.program, "offset") {
-                gl.uniform_1_f32(Some(&uniform), self.offset as f32 / self.width as f32);
+                gl.uniform_1_f32(Some(&uniform), self.offset as f32 / self.height as f32);
             }
             check_for_gl_errors(&gl, "update uniform");
 
