@@ -91,7 +91,6 @@ impl DebugPlots {
                         plot_ui.line(mag_line);
                         plot_ui.line(phase_line);
                     });
-                    ui.heading("TODO");
                 }
             };
         });
