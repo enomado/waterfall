@@ -29,6 +29,7 @@ pub struct Waterfall {
     ebo: glow::Buffer,
     offset: usize,
     width: usize,
+    height: usize,
     fft_in: Receiver<Vec<u8>>,
 }
 
@@ -82,8 +83,8 @@ impl Waterfall {
                     glow::UNSIGNED_BYTE,
                     PixelUnpackData::Slice(&fft),
                 );
-                check_for_gl_errors(&gl, "update texture");
-                self.offset = (self.offset + 1) % self.width;
+                check_for_gl_errors(&gl, &format!("update texture with offset {}", self.offset));
+                self.offset = (self.offset + 1) % self.height;
             }
 
             if let Some(uniform) = gl.get_uniform_location(self.program, "offset") {
@@ -317,6 +318,7 @@ impl Waterfall {
                 ebo,
                 offset: 0_usize,
                 width,
+                height,
                 fft_in,
             }
         }
