@@ -1,20 +1,15 @@
 use anyhow::{anyhow, Result};
-use cpal::{
-    self,
-    traits::{DeviceTrait, HostTrait},
-    BufferSize, StreamConfig,
-};
 use realfft::RealFftPlanner;
-use std::sync::mpsc::{self, Sender};
+use std::sync::mpsc::{self, Receiver, Sender};
 
 use super::debug_plot::PlotData;
 
-pub struct AudioFFT {
-    pub stream: cpal::Stream,
+pub struct Fft {
+    pub tx: Sender<Vec<f32>>,
     pub output_len: usize,
 }
 
-impl AudioFFT {
+impl Fft {
     pub fn new(
         size: usize,
         plot_tx: Sender<(&'static str, PlotData)>,
@@ -23,29 +18,19 @@ impl AudioFFT {
 
         // Create mpsc queue
         let (tx, rx) = mpsc::channel();
+        let (in_tx, in_rx): (Sender<Vec<f32>>, Receiver<Vec<f32>>) = mpsc::channel();
 
         // Setup fft use f32 for now
         let mut fft_planner = RealFftPlanner::<f32>::new();
         let fft = fft_planner.plan_fft_forward(size);
 
-        // Setup audio input
-        let host = cpal::default_host();
-        let device = host
-            .default_input_device()
-            .ok_or(anyhow!("No input audio device found"))?;
-        // Basic config that 'should' be suppoted by most devices
-        let config = StreamConfig {
-            channels: 1,
-            sample_rate: cpal::SampleRate(44100),
-            buffer_size: BufferSize::Default,
-        };
-
         let mut fft_in: Vec<f32> = Vec::with_capacity(size);
         let mut fft_out = fft.make_output_vec();
         let mut fft_scratch = fft.make_scratch_vec();
-        let stream = device.build_input_stream(
-            &config,
-            move |mut data: &[f32], _: &cpal::InputCallbackInfo| {
+
+        std::thread::spawn(move || {
+            while let Ok(samples) = in_rx.recv() {
+                let mut data = samples.as_slice();
                 while data.fill_vec(&mut fft_in, size).is_ok() {
                     assert_eq!(size, fft_in.len());
                     fft.process_with_scratch(&mut fft_in, &mut fft_out, &mut fft_scratch)
@@ -67,12 +52,16 @@ impl AudioFFT {
                         .unwrap();
                     tx.send(output).unwrap();
                 }
-            },
-            move |err| log::error!("Audio Thread Error: {err}"),
-            None,
-        )?;
+            }
+        });
 
-        Ok((Self { stream, output_len }, rx))
+        Ok((
+            Self {
+                tx: in_tx,
+                output_len,
+            },
+            rx,
+        ))
     }
 }
 

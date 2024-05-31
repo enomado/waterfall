@@ -6,8 +6,10 @@ pub mod debug_plot;
 use debug_plot::DebugPlots;
 mod waterfall;
 use waterfall::Waterfall;
-mod audio_fft;
-use audio_fft::AudioFFT;
+mod audio;
+use audio::Audio;
+mod fft;
+use fft::Fft;
 pub mod turbo_colormap;
 
 const FFT_SIZE: usize = 1024;
@@ -19,7 +21,8 @@ pub struct TemplateApp {
     value: f32,
     /// Behind an `Arc<Mutex<…>>` so we can pass it to [`egui::PaintCallback`] and paint later.
     waterfall: Arc<Mutex<Waterfall>>,
-    _stream: AudioFFT,
+    _stream: Audio,
+    _fft: Fft,
 }
 
 impl TemplateApp {
@@ -32,8 +35,12 @@ impl TemplateApp {
         // Note that you must enable the `persistence` feature for this to work.
 
         let plots = DebugPlots::new();
-        let (stream, rx) = AudioFFT::new(FFT_SIZE, plots.get_sender()).unwrap();
-        let wf_size = stream.output_len;
+
+        //let (stream, rx) = AudioFFT::new(FFT_SIZE, plots.get_sender()).unwrap();
+        let (fft, rx) = Fft::new(FFT_SIZE, plots.get_sender()).unwrap();
+        let stream = Audio::new(fft.tx.clone(), plots.get_sender()).unwrap();
+
+        let wf_size = fft.output_len;
         let gl = cc
             .gl
             .as_ref()
@@ -46,6 +53,7 @@ impl TemplateApp {
             value: 2.7,
             waterfall: Arc::new(Mutex::new(Waterfall::new(gl, wf_size, wf_size, rx))),
             _stream: stream,
+            _fft: fft,
         }
     }
 }
