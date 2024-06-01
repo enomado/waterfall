@@ -1,13 +1,15 @@
 use eframe::{egui_glow, glow};
-use egui::mutex::Mutex;
+use egui::{mutex::Mutex, ScrollArea};
 use std::sync::Arc;
+
+use crate::backend::{self, Backends};
 
 pub mod debug_plot;
 use debug_plot::DebugPlots;
 mod waterfall;
 use waterfall::Waterfall;
-mod audio;
-use audio::Audio;
+//mod aud1o;
+//use aud1o::Audio;
 mod fft;
 use fft::Fft;
 pub mod turbo_colormap;
@@ -21,8 +23,11 @@ pub struct TemplateApp {
     value: f32,
     /// Behind an `Arc<Mutex<…>>` so we can pass it to [`egui::PaintCallback`] and paint later.
     waterfall: Arc<Mutex<Waterfall>>,
-    _stream: Audio,
+    //_stream: Audio,
     _fft: Fft,
+    _backends: backend::Backends,
+    _selected_backend: usize,
+    _open_device: Option<Box<dyn backend::Device>>,
 }
 
 impl TemplateApp {
@@ -38,7 +43,7 @@ impl TemplateApp {
 
         //let (stream, rx) = AudioFFT::new(FFT_SIZE, plots.get_sender()).unwrap();
         let (fft, rx) = Fft::new(FFT_SIZE, plots.get_sender()).unwrap();
-        let stream = Audio::new(fft.tx.clone(), plots.get_sender()).unwrap();
+        //let stream = Audio::new(fft.tx.clone(), plots.get_sender()).unwrap();
 
         let wf_size = fft.output_len;
         let gl = cc
@@ -52,8 +57,11 @@ impl TemplateApp {
             label: "Hello World!".to_owned(),
             value: 2.7,
             waterfall: Arc::new(Mutex::new(Waterfall::new(gl, wf_size, wf_size, rx))),
-            _stream: stream,
+            //_stream: stream,
             _fft: fft,
+            _backends: Backends::default(),
+            _selected_backend: 0,
+            _open_device: None,
         }
     }
 }
@@ -99,6 +107,54 @@ impl eframe::App for TemplateApp {
         });
 
         self.plots.render_plot_windows(ctx);
+
+        egui::Window::new("Select Device")
+            .default_width(600.0)
+            .default_height(400.0)
+            .vscroll(false)
+            .resizable(true)
+            .show(ctx, |ui| {
+                egui::SidePanel::left("Select Driver")
+                    .resizable(true)
+                    .default_width(150.0)
+                    .width_range(80.0..=200.0)
+                    .show_inside(ui, |ui| {
+                        ScrollArea::vertical().show(ui, |ui| {
+                            ui.with_layout(
+                                egui::Layout::top_down_justified(egui::Align::LEFT),
+                                |ui| {
+                                    for (i, b) in self._backends.0.iter().enumerate() {
+                                        ui.selectable_value(
+                                            &mut self._selected_backend,
+                                            i,
+                                            b.display_text(),
+                                        );
+                                    }
+                                },
+                            );
+                        });
+                    });
+                //egui::CentralPanel::default().show_inside(ui, |ui| {
+                ui.vertical_centered(|ui| {
+                    egui::ScrollArea::vertical().show(ui, |ui| {
+                        //if self._selected_backend < self._backends.0.len() {
+                        if let Some(b) = self._backends.0.get_mut(self._selected_backend) {
+                            //let mut b = &self._backends.0[self._selected_backend];
+                            b.show_device_selection(ui);
+                            if ui.add(egui::Button::new("Apply")).clicked() {
+                                drop(self._open_device.take());
+                                if let Ok(device) =
+                                    b.build_device(self._fft.tx.clone(), self.plots.get_sender())
+                                {
+                                    self._open_device = Some(device);
+                                }
+                            }
+                        } else {
+                            ui.add(egui::Label::new("Select a Device Driver"));
+                        }
+                    });
+                });
+            });
 
         egui::CentralPanel::default().show(ctx, |ui| {
             // The central panel the region left after adding TopPanel's and SidePanel's

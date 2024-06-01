@@ -1,6 +1,7 @@
 #![warn(clippy::all, rust_2018_idioms)]
 
 pub mod app;
+mod backend;
 
 #[cfg(target_os = "android")]
 #[no_mangle]
