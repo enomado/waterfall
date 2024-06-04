@@ -31,8 +31,8 @@ impl Audio {
     }
 }
 impl crate::backend::Device for Audio {
-    fn show_settings(&mut self, _ui: &mut egui::Ui) {
-        todo!()
+    fn show_settings(&mut self, ui: &mut egui::Ui) {
+        ui.label("TODO");
     }
 
     fn can_tune(&self) -> bool {

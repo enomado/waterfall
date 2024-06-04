@@ -23,6 +23,7 @@ pub struct TemplateApp {
     selected_backend: usize,
     open_device: Option<Box<dyn backend::Device>>,
     device_window_open: bool,
+    side_panel_open: bool,
 }
 
 impl TemplateApp {
@@ -52,6 +53,7 @@ impl TemplateApp {
             selected_backend: 0,
             open_device: None,
             device_window_open: true,
+            side_panel_open: false,
         }
     }
 }
@@ -73,7 +75,7 @@ impl eframe::App for TemplateApp {
         ctx.request_repaint();
         self.plots.update_plots();
 
-        // Menu bar
+        // Menu bar panel
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
             egui::menu::bar(ui, |ui| {
                 // NOTE: no File->Quit on web pages!
@@ -88,6 +90,10 @@ impl eframe::App for TemplateApp {
                         }
                     }
                 });
+                ui.menu_button("View", |ui| {
+                    ui.checkbox(&mut self.side_panel_open, "Side Panel");
+                });
+
                 self.plots.render_menu_buttons(ui);
                 ui.add_space(16.0);
 
@@ -95,6 +101,14 @@ impl eframe::App for TemplateApp {
             });
         });
 
+        // Side panel
+        egui::SidePanel::right("Sid panel").show_animated(ctx, self.side_panel_open, |ui| {
+            if let Some(d) = &mut self.open_device {
+                d.show_settings(ui)
+            }
+        });
+
+        // Central panel
         egui::CentralPanel::default().show(ctx, |ui| {
             egui::TopBottomPanel::top("Plot")
                 .resizable(true)
