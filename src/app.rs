@@ -25,6 +25,7 @@ pub struct TemplateApp {
     _backends: backend::Backends,
     _selected_backend: usize,
     _open_device: Option<Box<dyn backend::Device>>,
+    device_window_open: bool,
 }
 
 impl TemplateApp {
@@ -57,6 +58,7 @@ impl TemplateApp {
             _backends: Backends::default(),
             _selected_backend: 0,
             _open_device: None,
+            device_window_open: true,
         }
     }
 }
@@ -87,13 +89,16 @@ impl eframe::App for TemplateApp {
             egui::menu::bar(ui, |ui| {
                 // NOTE: no File->Quit on web pages!
                 let is_web = cfg!(target_arch = "wasm32");
-                if !is_web {
-                    ui.menu_button("File", |ui| {
+                ui.menu_button("File", |ui| {
+                    if ui.button("Open Device").clicked() {
+                        self.device_window_open = true;
+                    }
+                    if !is_web {
                         if ui.button("Quit").clicked() {
                             ctx.send_viewport_cmd(egui::ViewportCommand::Close);
                         }
-                    });
-                }
+                    }
+                });
                 self.plots.render_menu_buttons(ui);
                 ui.add_space(16.0);
 
@@ -103,7 +108,12 @@ impl eframe::App for TemplateApp {
 
         self.plots.render_plot_windows(ctx);
 
+        if self._open_device.is_none() {
+            self.device_window_open = true;
+        }
+        let mut close_device_window = false;
         egui::Window::new("Select Device")
+            .open(&mut self.device_window_open)
             .default_width(600.0)
             .default_height(400.0)
             .vscroll(false)
@@ -129,7 +139,6 @@ impl eframe::App for TemplateApp {
                             );
                         });
                     });
-                //egui::CentralPanel::default().show_inside(ui, |ui| {
                 ui.vertical_centered(|ui| {
                     egui::ScrollArea::vertical().show(ui, |ui| {
                         //if self._selected_backend < self._backends.0.len() {
@@ -142,6 +151,7 @@ impl eframe::App for TemplateApp {
                                     b.build_device(self._fft.tx.clone(), self.plots.get_sender())
                                 {
                                     self._open_device = Some(device);
+                                    close_device_window = true;
                                 }
                             }
                         } else {
@@ -150,6 +160,9 @@ impl eframe::App for TemplateApp {
                     });
                 });
             });
+        if close_device_window {
+            self.device_window_open = false;
+        }
 
         egui::CentralPanel::default().show(ctx, |ui| {
             // The central panel the region left after adding TopPanel's and SidePanel's
