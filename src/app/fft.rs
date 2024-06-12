@@ -1,24 +1,21 @@
 use anyhow::{anyhow, Result};
 use realfft::RealFftPlanner;
-use std::sync::mpsc::{self, Receiver, Sender};
+use std::sync::mpsc::{self, Receiver, SyncSender, TrySendError};
 
-use super::debug_plot::PlotData;
+use super::debug_plot::{DebugPlotSender, PlotData};
 
 pub struct Fft {
-    pub tx: Sender<Vec<f32>>,
+    pub tx: SyncSender<Vec<f32>>,
     pub output_len: usize,
 }
 
 impl Fft {
-    pub fn new(
-        size: usize,
-        plot_tx: Sender<(&'static str, PlotData)>,
-    ) -> Result<(Self, mpsc::Receiver<Vec<u8>>)> {
+    pub fn new(size: usize, plot_tx: DebugPlotSender) -> Result<(Self, mpsc::Receiver<Vec<u8>>)> {
         let output_len = size / 2 + 1;
 
         // Create mpsc queue
-        let (tx, rx) = mpsc::channel();
-        let (in_tx, in_rx): (Sender<Vec<f32>>, Receiver<Vec<f32>>) = mpsc::channel();
+        let (tx, rx) = mpsc::sync_channel(10);
+        let (in_tx, in_rx): (SyncSender<Vec<f32>>, Receiver<Vec<f32>>) = mpsc::sync_channel(10);
 
         // Setup fft use f32 for now
         let mut fft_planner = RealFftPlanner::<f32>::new();
@@ -36,7 +33,7 @@ impl Fft {
                     fft.process_with_scratch(&mut fft_in, &mut fft_out, &mut fft_scratch)
                         .unwrap();
                     plot_tx
-                        .send(("FFT Output", PlotData::Bode32(fft_out.clone())))
+                        .send("FFT Output", PlotData::Bode32(fft_out.clone()))
                         .unwrap();
                     fft_in.clear();
                     let output: Vec<u8> = fft_out
@@ -48,9 +45,15 @@ impl Fft {
                         .collect();
                     assert_eq!(output_len, output.len());
                     plot_tx
-                        .send(("FFT Processed Output", PlotData::U8(output.clone())))
+                        .send("FFT Processed Output", PlotData::U8(output.clone()))
                         .unwrap();
-                    tx.send(output).unwrap();
+                    match tx.try_send(output) {
+                        Ok(_) => {}
+                        Err(TrySendError::Full(_)) => log::warn!("Waterfall buffer full."),
+                        Err(TrySendError::Disconnected(_)) => {
+                            panic!("The fft thread has disconnected from the waterfall!")
+                        }
+                    }
                 }
             }
         });

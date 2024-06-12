@@ -4,9 +4,9 @@ use cpal::{
     traits::{DeviceTrait, HostTrait},
     BufferSize,
 };
-use std::sync::mpsc::Sender;
+use std::sync::mpsc::{SyncSender, TrySendError};
 
-use crate::app::debug_plot::PlotData;
+use crate::app::debug_plot::DebugPlotSender;
 
 pub struct Audio {
     pub stream: cpal::Stream,
@@ -15,13 +15,19 @@ impl Audio {
     pub fn new(
         device: &cpal::Device,
         config: cpal::StreamConfig,
-        fft_input: Sender<Vec<f32>>,
-        _plot_tx: Sender<(&'static str, PlotData)>,
+        fft_input: SyncSender<Vec<f32>>,
+        _plot_tx: DebugPlotSender,
     ) -> Result<Self> {
         let stream = device.build_input_stream(
             &config,
             move |data: &[f32], _: &cpal::InputCallbackInfo| {
-                fft_input.send(data.to_vec()).unwrap();
+                match fft_input.try_send(data.to_vec()) {
+                    Err(TrySendError::Disconnected(_)) => panic!(
+                        "Error: Audio backend has lost connection to frontend! Can not continue!"
+                    ),
+                    Err(TrySendError::Full(_)) => log::warn!("Audio Backend buffer full."),
+                    Ok(()) => {}
+                };
             },
             move |err| log::error!("Audio Thread Error: {err}"),
             None,
@@ -88,8 +94,8 @@ impl super::Backend for AudioBackend {
 
     fn build_device(
         &mut self,
-        fft_input: Sender<Vec<f32>>,
-        _plot_tx: Sender<(&'static str, PlotData)>,
+        fft_input: SyncSender<Vec<f32>>,
+        _plot_tx: DebugPlotSender,
     ) -> anyhow::Result<Box<dyn super::Device>> {
         let config = cpal::StreamConfig {
             channels: 1,

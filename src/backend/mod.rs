@@ -1,8 +1,8 @@
-use std::sync::mpsc::Sender;
+use std::sync::mpsc::SyncSender;
 
 use egui::Ui;
 
-use crate::app::debug_plot::PlotData;
+use crate::app::debug_plot::DebugPlotSender;
 mod audio;
 pub trait Device {
     fn show_settings(&mut self, ui: &mut Ui);
@@ -14,8 +14,8 @@ pub trait Backend {
     fn show_device_selection(&mut self, ui: &mut Ui);
     fn build_device(
         &mut self,
-        fft_input: Sender<Vec<f32>>,
-        _plot_tx: Sender<(&'static str, PlotData)>,
+        fft_input: SyncSender<Vec<f32>>,
+        _plot_tx: DebugPlotSender,
     ) -> anyhow::Result<Box<dyn Device>>;
 }
 pub struct Backends(pub Vec<Box<dyn Backend>>);

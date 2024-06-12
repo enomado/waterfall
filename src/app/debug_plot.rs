@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::sync::mpsc::{self, Sender};
+use std::sync::mpsc;
 
 use egui::{Context, Ui};
 use egui_plot::{Line, Plot, PlotBounds, PlotPoints};
@@ -10,25 +10,44 @@ pub enum PlotData {
     //F32(Vec<f32>),
     Bode32(Vec<Complex32>),
 }
-
+#[derive(Clone)]
+pub struct DebugPlotSender {
+    tx: mpsc::SyncSender<(&'static str, PlotData)>,
+}
+impl DebugPlotSender {
+    pub fn send(
+        &self,
+        plot_name: &'static str,
+        plot_data: PlotData,
+    ) -> Result<(), mpsc::SendError<PlotData>> {
+        match self.tx.try_send((plot_name, plot_data)) {
+            Err(mpsc::TrySendError::Full(_)) => {
+                log::warn!("Debug buffer is full!");
+                Ok(())
+            }
+            Err(mpsc::TrySendError::Disconnected((_, d))) => Err(mpsc::SendError(d)),
+            Ok(()) => Ok(()),
+        }
+    }
+}
 pub struct DebugPlots {
     plots: HashMap<&'static str, PlotData>,
     plot_en: HashMap<&'static str, bool>,
     rx: mpsc::Receiver<(&'static str, PlotData)>,
-    tx: mpsc::Sender<(&'static str, PlotData)>,
+    tx: DebugPlotSender,
 }
 
 impl DebugPlots {
     pub fn new() -> Self {
-        let (tx, rx) = mpsc::channel();
+        let (tx, rx) = mpsc::sync_channel(128);
         DebugPlots {
             plots: HashMap::new(),
             plot_en: HashMap::new(),
             rx,
-            tx,
+            tx: DebugPlotSender { tx },
         }
     }
-    pub fn get_sender(&self) -> Sender<(&'static str, PlotData)> {
+    pub fn get_sender(&self) -> DebugPlotSender {
         self.tx.clone()
     }
     pub fn update_plots(&mut self) {
