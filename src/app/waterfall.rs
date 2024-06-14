@@ -17,6 +17,25 @@ unsafe fn check_for_gl_errors(gl: &glow::Context, msg: &str) {
         log::error!("Waterfall {}: GL ERROR {} ({:#X})", msg, err, err);
     }
 }
+unsafe fn clear_texture(gl: &glow::Context, bytes_per_row: usize, n_rows: usize) {
+    let blank_line = vec![0_u8; bytes_per_row];
+    for offset in 0..n_rows {
+        unsafe {
+            gl.tex_sub_image_2d(
+                glow::TEXTURE_2D,
+                0,
+                0,
+                offset as i32,
+                bytes_per_row as i32,
+                1,
+                glow::RED,
+                glow::UNSIGNED_BYTE,
+                PixelUnpackData::Slice(&blank_line),
+            );
+            check_for_gl_errors(&gl, &format!("clear texture with offset {}", offset));
+        }
+    }
+}
 
 use crate::app::turbo_colormap;
 
@@ -199,6 +218,9 @@ impl Waterfall {
                 None,
             );
             check_for_gl_errors(&gl, "Initializing Texture");
+
+            // Clear the texture
+            clear_texture(gl, width, height);
 
             let color_lut = gl
                 .create_texture()
