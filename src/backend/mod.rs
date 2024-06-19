@@ -4,6 +4,7 @@ use egui::Ui;
 
 use crate::app::debug_plot::DebugPlotSender;
 mod audio;
+mod dummy;
 pub trait Device {
     fn show_settings(&mut self, ui: &mut Ui);
     fn can_tune(&self) -> bool;
@@ -24,16 +25,23 @@ pub struct Backends(pub Vec<Box<dyn Backend>>);
 #[cfg(all(not(target_arch = "wasm32"), not(target_os = "android")))]
 impl Default for Backends {
     fn default() -> Self {
-        Backends(vec![Box::new(audio::AudioBackend::new())])
+        Backends(vec![
+            Box::new(audio::AudioBackend::new()),
+            Box::new(dummy::DummyBackend::new()),
+        ])
     }
 }
 
 #[cfg(target_arch = "wasm32")]
 impl Default for Backends {
-    fn default() -> Self {}
+    fn default() -> Self {
+        Backends(vec![Box::new(dummy::DummyBackend::new())])
+    }
 }
 
 #[cfg(target_os = "android")]
 impl Default for Backends {
-    fn default() -> Self {}
+    fn default() -> Self {
+        Backends(vec![Box::new(dummy::DummyBackend::new())])
+    }
 }

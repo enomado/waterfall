@@ -7,7 +7,7 @@ use realfft::num_complex::Complex32;
 
 pub enum PlotData {
     U8(Vec<u8>),
-    //F32(Vec<f32>),
+    F32(Vec<f32>),
     Bode32(Vec<Complex32>),
 }
 #[derive(Clone)]
@@ -91,6 +91,18 @@ impl DebugPlots {
                         plot_ui.set_plot_bounds(PlotBounds::from_min_max(
                             [-1.0, -1.0],
                             [(v.len() + 1) as f64, core::u8::MAX as f64 + 1.0],
+                        ));
+                    });
+                }
+                PlotData::F32(v) => {
+                    ui.heading("f32 plot");
+                    let line = Line::new(PlotPoints::from_ys_f32(&v));
+                    let plot = Plot::new(title);
+                    plot.show(ui, |plot_ui| {
+                        plot_ui.line(line);
+                        plot_ui.set_plot_bounds(PlotBounds::from_min_max(
+                            [-1.0, -2.0],
+                            [(v.len() + 1) as f64, 2.0],
                         ));
                     });
                 }
