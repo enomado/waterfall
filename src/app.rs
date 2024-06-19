@@ -84,6 +84,13 @@ impl eframe::App for TemplateApp {
                     if ui.button("Open Device").clicked() {
                         self.device_window_open = true;
                     }
+                    if self.open_device.is_some() {
+                        if ui.button("Close Device").clicked() {
+                            if let Some(dev) = self.open_device.take() {
+                                dev.close();
+                            }
+                        }
+                    }
                     if !is_web {
                         if ui.button("Quit").clicked() {
                             ctx.send_viewport_cmd(egui::ViewportCommand::Close);
@@ -185,7 +192,9 @@ impl eframe::App for TemplateApp {
                         //let mut b = &self._backends.0[self._selected_backend];
                         b.show_device_selection(ui);
                         if ui.add(egui::Button::new("Apply")).clicked() {
-                            drop(self.open_device.take());
+                            if let Some(dev) = self.open_device.take() {
+                                dev.close()
+                            };
                             if let Ok(device) =
                                 b.build_device(self.fft.tx.clone(), self.plots.get_sender())
                             {

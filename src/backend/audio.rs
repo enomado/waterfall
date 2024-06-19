@@ -48,6 +48,10 @@ impl crate::backend::Device for Audio {
     fn tune(&mut self, _freq: usize) -> anyhow::Result<()> {
         anyhow::bail!("Can't tune this device")
     }
+
+    fn close(self: Box<Self>) {
+        drop(self);
+    }
 }
 
 pub struct AudioBackend {

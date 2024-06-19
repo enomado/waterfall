@@ -8,6 +8,7 @@ pub trait Device {
     fn show_settings(&mut self, ui: &mut Ui);
     fn can_tune(&self) -> bool;
     fn tune(&mut self, freq: usize) -> anyhow::Result<()>;
+    fn close(self: Box<Self>);
 }
 pub trait Backend {
     fn display_text(&self) -> &'static str;
@@ -29,14 +30,10 @@ impl Default for Backends {
 
 #[cfg(target_arch = "wasm32")]
 impl Default for Backends {
-    fn default() -> Self {
-        Backends(vec![])
-    }
+    fn default() -> Self {}
 }
 
 #[cfg(target_os = "android")]
 impl Default for Backends {
-    fn default() -> Self {
-        Backends(vec![])
-    }
+    fn default() -> Self {}
 }
