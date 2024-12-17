@@ -2,12 +2,15 @@
 
 pub mod app;
 mod backend;
+use std::env;
 
 #[cfg(target_os = "android")]
 #[no_mangle]
 fn android_main(app: winit::platform::android::activity::AndroidApp) {
     use winit::platform::android::activity::WindowManagerFlags;
     use winit::platform::android::EventLoopBuilderExtAndroid;
+
+    env::set_var("RUST_BACKTRACE", "full");
 
     // Disable LAYOUT_IN_SCREEN to keep app from drawing under the status bar
     // winit does not currently do anything with MainEvent::InsetsChanged events
@@ -29,7 +32,7 @@ fn android_main(app: winit::platform::android::activity::AndroidApp) {
     let res = eframe::run_native(
         "eframe template",
         options,
-        Box::new(|cc| Box::new(app::TemplateApp::new(cc))),
+        Box::new(|cc| Ok(Box::new(app::TemplateApp::new(cc)))),
     );
     if let Err(e) = res {
         log::error!("{e:?}");

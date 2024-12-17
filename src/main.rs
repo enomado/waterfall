@@ -8,7 +8,11 @@ mod backend;
 // When compiling natively:
 #[cfg(all(not(target_arch = "wasm32"), not(target_os = "android")))]
 fn main() -> eframe::Result<()> {
+    use std::env;
+
     env_logger::init(); // Log to stderr (if you run with `RUST_LOG=debug`).
+
+    env::set_var("RUST_BACKTRACE", "full");
 
     let native_options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
@@ -23,7 +27,7 @@ fn main() -> eframe::Result<()> {
     eframe::run_native(
         "eframe template",
         native_options,
-        Box::new(|cc| Box::new(TemplateApp::new(cc))),
+        Box::new(|cc| Ok(Box::new(TemplateApp::new(cc)))),
     )
 }
 
