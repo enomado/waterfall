@@ -9,7 +9,7 @@ edition = "2021"
 [dependencies]
 anyhow = {version="*"}
 # , "oboe-shared-stdcxx"
-cpal = {version="*", features=["jack", "oboe-shared-stdcxx"]}
+cpal = {version="*", features=["oboe-shared-stdcxx"]}
 
 egui = "0.29.*"
 egui_plot = "0.29.*"
@@ -31,7 +31,6 @@ features = ["accesskit", "default_fonts", "glow", "android-native-activity"]
 # android only dependencies
 [target.'cfg(target_os = "android")'.dependencies]
 android_logger = "*"
-#android-activity = { version = "0.5", features = ["native-activity"] }
 winit = { version = "0.30.5", features = ["android-native-activity"] }
 
 # native only dependencies

@@ -1,7 +1,7 @@
-#![warn(clippy::all, rust_2018_idioms)]
+#![allow(unused)]
 
 pub mod app;
-mod backend;
+
 use std::env;
 
 #[cfg(target_os = "android")]
@@ -27,7 +27,9 @@ fn android_main(app: winit::platform::android::activity::AndroidApp) {
     android_logger::init_once(
         android_logger::Config::default().with_max_level(log::LevelFilter::Debug),
     );
+
     let mut options = eframe::NativeOptions::default();
+
     options.event_loop_builder = Some(Box::new(move |builder| {
         builder.with_android_app(app);
     }));
