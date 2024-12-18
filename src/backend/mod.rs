@@ -42,6 +42,9 @@ impl Default for Backends {
 #[cfg(target_os = "android")]
 impl Default for Backends {
     fn default() -> Self {
-        Backends(vec![Box::new(dummy::DummyBackend::new())])
+        Backends(vec![
+            Box::new(audio::AudioBackend::new()),
+            Box::new(dummy::DummyBackend::new()),
+        ])
     }
 }

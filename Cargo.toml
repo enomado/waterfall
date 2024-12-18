@@ -8,6 +8,7 @@ edition = "2021"
 # Common dependencies
 [dependencies]
 anyhow = {version="*"}
+# , "oboe-shared-stdcxx"
 cpal = {version="*", features=["jack", "oboe-shared-stdcxx"]}
 
 egui = "0.29.*"
@@ -54,3 +55,7 @@ crate-type = ["cdylib"]
 [[bin]]
 name = "waterfall"
 path = "src/main.rs"
+
+# https://github.com/rust-mobile/xbuild/issues/125#issuecomment-2424234343
+[[package.metadata.android.uses_permission]]
+name = "android.permission.RECORD_AUDIO"

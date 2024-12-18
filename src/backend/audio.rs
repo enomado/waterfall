@@ -62,11 +62,15 @@ pub struct AudioBackend {
 impl AudioBackend {
     pub fn new() -> Self {
         let host = cpal::default_host();
-        let devices = host.devices().unwrap().collect();
+        let devices = host.devices().unwrap().collect::<Vec<_>>();
+
+        let just_input = host.default_input_device().unwrap();
+
         let current_device = 0;
         Self {
             host,
-            devices,
+            // devices,
+            devices: vec![just_input],
             current_device,
         }
     }
@@ -101,16 +105,40 @@ impl super::Backend for AudioBackend {
         fft_input: SyncSender<Vec<f32>>,
         _plot_tx: DebugPlotSender,
     ) -> anyhow::Result<Box<dyn super::Device>> {
+        dbg!("building");
+
+        // let config = cpal::StreamConfig {
+        //     channels: 1,
+        //     sample_rate: cpal::SampleRate(44100),
+        //     buffer_size: BufferSize::Default,
+        // };
+
+        dbg!("building 2");
+
+        let default_device = self.host.default_input_device().unwrap();
+
+        // let config = default_device.default_input_config().unwrap().config();
+
         let config = cpal::StreamConfig {
             channels: 1,
             sample_rate: cpal::SampleRate(44100),
             buffer_size: BufferSize::Default,
         };
-        Ok(Box::new(Audio::new(
-            &self.devices[self.current_device],
+
+        // default_device.build_input_stream(config, data_callback, error_callback, timeout)
+
+        let audio = Audio::new(
+            // &self.devices[self.current_device],
+            &default_device,
             config,
             fft_input,
             _plot_tx,
-        )?))
+        )?;
+
+        dbg!("building 3");
+
+        let res = Box::new(audio);
+
+        Ok(res)
     }
 }

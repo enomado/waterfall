@@ -188,16 +188,17 @@ impl eframe::App for TemplateApp {
             ui.vertical_centered(|ui| {
                 egui::ScrollArea::vertical().show(ui, |ui| {
                     //if self._selected_backend < self._backends.0.len() {
-                    if let Some(b) = self.backends.0.get_mut(self.selected_backend) {
+                    if let Some(some_backend) = self.backends.0.get_mut(self.selected_backend) {
                         //let mut b = &self._backends.0[self._selected_backend];
-                        b.show_device_selection(ui);
+                        some_backend.show_device_selection(ui);
                         if ui.add(egui::Button::new("Apply")).clicked() {
                             if let Some(dev) = self.open_device.take() {
                                 dev.close()
                             };
-                            if let Ok(device) =
-                                b.build_device(self.fft.tx.clone(), self.plots.get_sender())
+                            if let Ok(device) = some_backend
+                                .build_device(self.fft.tx.clone(), self.plots.get_sender())
                             {
+                                dbg!("device built?");
                                 self.open_device = Some(device);
                                 close_device_window = true;
                             }

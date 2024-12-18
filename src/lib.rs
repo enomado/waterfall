@@ -18,6 +18,9 @@ fn android_main(app: winit::platform::android::activity::AndroidApp) {
         WindowManagerFlags::empty(),
         WindowManagerFlags::LAYOUT_IN_SCREEN,
     );
+
+    // app.request_permissions()
+
     // Alternatively we can hide the system bars by setting the app to fullscreen
     //app.set_window_flags(WindowManagerFlags::FULLSCREEN, WindowManagerFlags::empty());
 
